@@ -1,27 +1,17 @@
-SELECT s.store_id, COUNT(c.customer_id), CONCAT(s2.last_name, ' ', s2.first_name), c2.city
-FROM store s
-JOIN customer c ON c.store_id = s.store_id 
-JOIN staff s2 ON s.manager_staff_id = s2.staff_id
-JOIN address a ON a.address_id  = s.address_id 
-JOIN city c2 ON c2.city_id = a.city_id
-GROUP BY s.store_id, CONCAT(s2.last_name, ' ', s2.first_name), c2.city
-HAVING COUNT(c.customer_id) > 300;
+-- EXPLAIN ANALYZE
+select distinct concat(c.last_name, ' ', c.first_name), sum(p.amount) over (partition by c.customer_id, f.title)
+from payment p, rental r, customer c, inventory i, film f
+where date(p.payment_date) = '2005-07-30' and p.payment_date = r.rental_date and r.customer_id = c.customer_id and i.inventory_id = r.inventory_id;
 
-SELECT COUNT(film_id) 
-FROM film
-WHERE length > (SELECT AVG(length) FROM film);
+-- EXPLAIN ANALYZE
+select distinct concat(c.last_name, ' ', c.first_name), sum(p.amount) over (partition by c.customer_id, f.title)
+from film f,payment p
+JOIN rental r ON p.payment_date = r.rental_date
+JOIN customer c ON r.customer_id = c.customer_id
+where date(p.payment_date) = '2005-07-30';
 
-SELECT SUM(amount) AS sum_amount, MONTH(payment_date) AS month_date, COUNT(rental_id) AS count_rental
-FROM payment
-GROUP BY MONTH(payment_date)
-ORDER BY sum_amount DESC
-LIMIT 1;
+CREATE INDEX first_last_idx ON customer(last_name, first_name);
+DROP INDEX first_last_idx ON customer;
 
-SELECT SUM(amount) AS sum_amount, MONTH(payment_date) AS month_date, COUNT(rental_id) AS count_rental
-FROM payment
-GROUP BY MONTH(payment_date)
-HAVING sum_amount = 
-(SELECT MAX(sum_amount) AS max_amount
-FROM (SELECT SUM(amount) AS sum_amount, MONTH(payment_date) AS month_date
-FROM payment
-GROUP BY month_date) X);
+CREATE INDEX amount_idx ON payment(amount);
+DROP INDEX amount_idx ON payment;
