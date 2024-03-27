@@ -23,7 +23,7 @@ FROM INFORMATION_SCHEMA.TABLES;
 
 ---
 
-### Задание 2. 
+### Задание 2 (исправленное). 
 
 Выполните explain analyze следующего запроса:
 
@@ -42,31 +42,34 @@ where date(p.payment_date) = '2005-07-30' and p.payment_date = r.rental_date and
 `EXPLAIN ANALYZE Первоначального запроса:`
 ![Скриншот 2](img/2.1.png)
 
-Для оптимизации убрал лишнюю таблицу inventory из FROM и вместо аргументов WHERE добавил остальные таблицы через JOIN, получившийся запрос:
+Для оптимизации: 
+1. Убрал лишнюю таблицу inventory так как ее наличие в запросе никак не меняет результат вывода запроса. 
+2. Убрал таблицу film, так ак ее наличие в аргументах оконной функции никак не меняет результат запроса. 
+3. Таблицы rental и customer добавил через JOIN, убрав их из аргументов WHERE. 
+4. Условие WHERE поменял так, чтобы не равенство, а больше меньше и был убран оператор DATE для лучшей работы с индексом на payment_date. 
+5. Вместо оконной функции был использован оператор GROUP BY получившийся запрос:
 ```sql
-select distinct concat(c.last_name, ' ', c.first_name), sum(p.amount) over (partition by c.customer_id, f.title)
-from film f,payment p
+select DISTINCT concat(c.last_name, ' ', c.first_name), sum(p.amount)
+FROM payment p
 JOIN rental r ON p.payment_date = r.rental_date
 JOIN customer c ON r.customer_id = c.customer_id
-where date(p.payment_date) = '2005-07-30';
+WHERE p.payment_date >= '2005-07-30' and p.payment_date < DATE_ADD('2005-07-30', INTERVAL 1 DAY)
+GROUP BY c.customer_id
 ```
 
-`EXPLAIN ANALYZE Получившегося запроса:`
+`EXPLAIN ANALYZE Получившегося запроса, было 4953, стало 6.68:`
 ![Скриншот 3](img/2.2.png)
 
-По итогу оптимизации время почти не уменьшилось, поэтому было решено попробовать добавить индексы. Как показала проверка, индексы на дату значительно увеличивают время обработки запроса, поэтому ограничился индексом на размер платежа и составным индексом на имя фамилию покупателя:
+Добавим индекс по дате и проверим время выполнения:
 ```sql
-CREATE INDEX first_last_idx ON customer(last_name, first_name);
-CREATE INDEX amount_idx ON payment(amount);
+CREATE INDEX payment_date_idx ON payment(payment_date)
 ```
 
-`EXPLAIN ANALYZE Получившегося запроса после добавления индексов:`
+`EXPLAIN ANALYZE Получившегося запроса после добавления индекса, было 6.68, стало 3.1:`
 ![Скриншот 4](img/2.3.png)
+`Строка в приближении, где видно, что добавленный индекс используется:`
+![Скриншот 5](img/2.3.1.png)
 
-Вывод: время обработки незначительно сократилось после добавления индексов.
-
-`Скриншоты для проверки, что вывод до и после оптимизации запроса одинаковый`
-![Скриншот 5](img/2.2.1.png)
-![Скриншот 6](img/2.2.2.png)
+Вывод: я оптимизировал запрос, существенно сократив время выполнения, а потом добавил индекс, который позволил еще больше сократить время выполнения.
 
 ---
